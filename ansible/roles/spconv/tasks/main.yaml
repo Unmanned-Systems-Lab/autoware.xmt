@@ -1,11 +1,28 @@
 # cspell:ignore Bcumm
+- name: Check for Jetson device model file
+  ansible.builtin.stat:
+    path: /proc/device-tree/model
+  register: spconv_device_model_path
+
+- name: Read device model
+  ansible.builtin.shell: tr -d '\0' < /proc/device-tree/model
+  args:
+    executable: /bin/bash
+  register: spconv_device_model
+  changed_when: false
+  when: spconv_device_model_path.stat.exists
+
+- name: Detect whether this arm64 machine is a Jetson
+  ansible.builtin.set_fact:
+    spconv_effective_is_jetson: "{{ spconv_is_jetson | bool or (ansible_architecture == 'aarch64' and (((spconv_device_model.stdout | default('')) is search('Jetson')) or (ansible_kernel is search('tegra')))) }}"
+
 - name: Normalize dpkg architecture
   ansible.builtin.set_fact:
     spconv_normalized_arch: "{{ ansible_architecture | regex_replace('aarch64', 'arm64') | regex_replace('x86_64', 'amd64') }}"
 
 - name: Set architecture suffix
   ansible.builtin.set_fact:
-    spconv_arch_suffix: "{{ '-jetson' if (spconv_normalized_arch == 'arm64' and spconv_is_jetson | bool) else ('-sbsa' if spconv_normalized_arch == 'arm64' else '') }}"
+    spconv_arch_suffix: "{{ '-jetson' if (spconv_normalized_arch == 'arm64' and spconv_effective_is_jetson | bool) else ('-sbsa' if spconv_normalized_arch == 'arm64' else '') }}"
 
 - name: Download the cumm package
   ansible.builtin.get_url:

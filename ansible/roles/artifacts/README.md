@@ -69,3 +69,15 @@ ansible-playbook autoware.dev_env.download_artifacts -e "data_dir=$HOME/autoware
 ```
 
 This will download and extract the artifacts to the specified directory and validate the checksums.
+
+### Retry and resume behavior
+
+- The artifact downloader uses `curl` with retries, HTTP resume, and checksum validation.
+- Partial downloads are stored as `*.download`. Rerunning the same playbook resumes from those files and removes them after a successful download.
+- Stalled low-speed transfers are retried automatically, which is useful for large files from `awf.ml.dev.web.auto` and S3-backed artifact buckets.
+- If you change anything under `ansible/roles/artifacts`, reinstall the collection before rerunning the playbook, because `ansible-playbook` uses the installed collection copy.
+
+```bash
+cd ~/autoware
+ansible-galaxy collection install -f -r "ansible-galaxy-requirements.yaml"
+```

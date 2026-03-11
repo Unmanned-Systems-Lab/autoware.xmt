@@ -169,6 +169,12 @@ if [ "$(uname -m)" = "aarch64" ]; then
     source "$SCRIPT_DIR/arm64.env"
 fi
 
+# Detect NVIDIA Jetson platforms to select Jetson-specific spconv packages.
+if [ "$(uname -m)" = "aarch64" ] && [ -r /proc/device-tree/model ] && tr -d '\0' </proc/device-tree/model | grep -qi "jetson"; then
+    echo -e "\e[36mDetected NVIDIA Jetson platform. Enabling Jetson-specific spconv packages.\e[m"
+    ansible_args+=("--extra-vars" "spconv_is_jetson=true")
+fi
+
 # Add env args
 # shellcheck disable=SC2013
 for env_name in $(sed -e "s/^\s*//" -e "/^#/d" -e "s/=.*//" <"$env_file"); do

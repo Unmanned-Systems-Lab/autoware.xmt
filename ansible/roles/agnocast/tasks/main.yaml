@@ -173,18 +173,45 @@
         - agnocast_linux_headers_available.rc == 0
         - agnocast_linux_headers_install.failed | default(false)
 
+    - name: Set whether agnocast-kmod can be managed on this kernel
+      ansible.builtin.set_fact:
+        agnocast_manage_kmod: "{{ agnocast_linux_headers_available.rc == 0 and not (agnocast_linux_headers_install.failed | default(false)) }}"
+
+    - name: Purge agnocast-kmod when kernel headers are unavailable
+      ansible.builtin.apt:
+        name: "{{ agnocast_kmod_package }}"
+        state: absent
+        purge: true
+      become: true
+      when: not agnocast_manage_kmod
+
+    - name: Remove agnocast module auto-load config when agnocast-kmod is unavailable
+      ansible.builtin.file:
+        path: /etc/modules-load.d/agnocast.conf
+        state: absent
+      become: true
+      when: not agnocast_manage_kmod
+
+    - name: Display info when skipping agnocast-kmod on unsupported kernel
+      ansible.builtin.debug:
+        msg: "Skipping agnocast-kmod because linux-headers-{{ ansible_kernel }} is unavailable on this system."
+      when: not agnocast_manage_kmod
+
     - name: Check if agnocast-kmod is installed in dkms with version v{{ agnocast_version }} # noqa: risky-shell-pipe
       ansible.builtin.shell: dkms status agnocast/{{ agnocast_version }} | grep -q 'installed'
       register: agnocast_dkms_status
       failed_when: false
       changed_when: false
+      when: agnocast_manage_kmod
 
     - name: Purge agnocast-kmod if not found in dkms for version v{{ agnocast_version }}
       ansible.builtin.apt:
         name: "{{ agnocast_kmod_package }}"
         state: absent
       become: true
-      when: agnocast_dkms_status.rc != 0
+      when:
+        - agnocast_manage_kmod
+        - agnocast_dkms_status.rc != 0
 
     - name: Install agnocast-kmod if not found in dkms for version v{{ agnocast_version }}
       ansible.builtin.apt:
@@ -193,12 +220,15 @@
       register: agnocast_kmod_install
       ignore_errors: true
       become: true
-      when: agnocast_dkms_status.rc != 0
+      when:
+        - agnocast_manage_kmod
+        - agnocast_dkms_status.rc != 0
 
     - name: Display warning if agnocast-kmod installation failed
       ansible.builtin.debug:
         msg: "WARNING: agnocast-kmod installation failed. To use agnocast, please manually download the Linux kernel headers and re-run this script."
       when:
+        - agnocast_manage_kmod
         - agnocast_dkms_status.rc != 0
         - agnocast_kmod_install.failed | default(false)
 
@@ -210,3 +240,6 @@
         group: root
         mode: "0644"
       become: true
+      when:
+        - agnocast_manage_kmod
+        - agnocast_dkms_status.rc == 0 or not (agnocast_kmod_install.failed | default(false))

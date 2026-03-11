@@ -116,12 +116,36 @@
     state: directory
     mode: "0755"
 
-- name: Register Vulkan GPU vendors
+- name: Check for existing system Vulkan vendor file
+  ansible.builtin.stat:
+    path: /usr/lib/aarch64-linux-gnu/nvidia/nvidia_icd.json
+  register: cuda_vulkan_vendor_source
+
+- name: Check for existing Vulkan vendor registration
+  ansible.builtin.stat:
+    path: /etc/vulkan/icd.d/nvidia_icd.json
+  register: cuda_vulkan_vendor_dest
+
+- name: Reuse system Vulkan vendor file when available
+  become: true
+  ansible.builtin.copy:
+    src: /usr/lib/aarch64-linux-gnu/nvidia/nvidia_icd.json
+    dest: /etc/vulkan/icd.d/nvidia_icd.json
+    remote_src: true
+    mode: "0644"
+  when:
+    - not cuda_vulkan_vendor_dest.stat.exists
+    - cuda_vulkan_vendor_source.stat.exists
+
+- name: Register Vulkan GPU vendors from upstream fallback
   become: true
   ansible.builtin.get_url:
     url: https://gitlab.com/nvidia/container-images/vulkan/raw/dc389b0445c788901fda1d85be96fd1cb9410164/nvidia_icd.json
     dest: /etc/vulkan/icd.d/nvidia_icd.json
     mode: "0644"
+  when:
+    - not cuda_vulkan_vendor_dest.stat.exists
+    - not cuda_vulkan_vendor_source.stat.exists
 
 - name: Set permissions for Vulkan GPU vendors
   become: true
@@ -129,12 +153,36 @@
     path: /etc/vulkan/icd.d/nvidia_icd.json
     mode: "0644"
 
-- name: Register OpenGL GPU vendors
+- name: Check for existing system OpenGL vendor file
+  ansible.builtin.stat:
+    path: /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+  register: cuda_opengl_vendor_source
+
+- name: Check for existing OpenGL vendor registration
+  ansible.builtin.stat:
+    path: /etc/glvnd/egl_vendor.d/10_nvidia.json
+  register: cuda_opengl_vendor_dest
+
+- name: Reuse system OpenGL vendor file when available
+  become: true
+  ansible.builtin.copy:
+    src: /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+    dest: /etc/glvnd/egl_vendor.d/10_nvidia.json
+    remote_src: true
+    mode: "0644"
+  when:
+    - not cuda_opengl_vendor_dest.stat.exists
+    - cuda_opengl_vendor_source.stat.exists
+
+- name: Register OpenGL GPU vendors from upstream fallback
   become: true
   ansible.builtin.get_url:
     url: https://gitlab.com/nvidia/container-images/opengl/raw/5191cf205d3e4bb1150091f9464499b076104354/glvnd/runtime/10_nvidia.json
     dest: /etc/glvnd/egl_vendor.d/10_nvidia.json
     mode: "0644"
+  when:
+    - not cuda_opengl_vendor_dest.stat.exists
+    - not cuda_opengl_vendor_source.stat.exists
 
 - name: Set permissions for OpenGL GPU vendors
   become: true
